@@ -4,6 +4,7 @@
 using Eigen::MatrixXd;
 
 Eigen::MatrixXd f_sigmoid(const Eigen::MatrixXd& mat, bool deriv=false);
+Eigen::MatrixXd f_softmax(const Eigen::MatrixXd& mat, bool deriv=false);
 Eigen::MatrixXd init_random_weight_matrix(size_t rows, size_t cols);
 
 int main()
@@ -20,7 +21,27 @@ int main()
     std::cout << test << std::endl;
 
     size_t t[4] = {4, 4};
-    Layer l(t, 4, false, false, f_sigmoid);
+    Layer l(t, 4, false, true, f_sigmoid);
+
+    std::cout << "Testing layer construction!" << std::endl;
+    
+    std::vector<size_t> t_vec = {100, 100, 100, 100};
+    ML_ANN* ann_t = new ML_ANN(t_vec, 100);
+
+    delete ann_t;
+    
+    Eigen::MatrixXd t_mat(4, 4);
+    t_mat << 1, 2, 3, 4,
+          5, 6, 7, 8,
+          9, 10, 11, 12,
+          13, 14, 15, 16;
+    std::cout << f_softmax(t_mat) << std::endl;
+
+    Eigen::MatrixXd cpy = t_mat;
+    std::cout << std::endl << t_mat << std::endl;
+
+    cpy(0, 3) = 1000;
+    std::cout << std::endl << t_mat << std::endl << cpy << std::endl;
 
     return 0;
 }
@@ -54,7 +75,33 @@ Eigen::MatrixXd f_softmax(const Eigen::MatrixXd& mat, bool deriv)
     // deriv here to allow contruction with function wrapper - deriv remains unused
     
     // softmax function - https://en.wikipedia.org/wiki/Softmax_function
+    
+    Eigen::MatrixXd exp_mat(mat.rows(), mat.cols());
+    Eigen::MatrixXd softmax_res(mat.rows(), 1);
+    
+    // summing the rows and placing into a column vector, each row representing the sum of mat_{row i}
+    size_t pos = 0;
+    for(auto row : mat.rowwise())
+    {
+        size_t temp = 0;
+        for(auto v : row)
+        {
+            temp += exp(v);
+        }
+        softmax_res(pos++, 0) = temp;
+    }
+    
+    // exponential matrix
+    size_t i, j;
+    for(i = 0; i < mat.size(); i++)
+        *(exp_mat.data() + i) = exp(*(mat.data() + i));
+    
+    // for each item in the exponentiation matrix - divide by corresponding row in softmax_res
+    for(i = 0; i < exp_mat.rows(); i++)
+        for(j = 0; j < exp_mat.cols(); j++)
+            exp_mat(i, j) = (exp_mat(i, j) / softmax_res(i));
 
+    return exp_mat;
 }
 
 /* LAYER CLASS IMPLEMENTATION */
@@ -102,7 +149,7 @@ Eigen::MatrixXd Layer::forward_propogate()
     size_t i;
     size_t col = Z.cols();
     for(i = 0; i < Z.rows(); i++)
-        Z(i, col) = 1;
+        Z(i, col-1) = 1;
 
     Fp = activation_func(S, true);
     Fp.transposeInPlace();
@@ -127,8 +174,7 @@ ML_ANN::ML_ANN(const std::vector<size_t>& layer_config, size_t minibatch_size)
 
             // additional unit at input for bias
             size_t size[2] = {layer_config[i] + 1, layer_config[i+1]};
-            Layer l = new Layer(size, minibatch_size, true, false, f_sigmoid);
-            layers.push_back(l);
+            layers.push_back(new Layer(size, minibatch_size, true, false, f_sigmoid));
             continue;
         }
         
@@ -136,17 +182,76 @@ ML_ANN::ML_ANN(const std::vector<size_t>& layer_config, size_t minibatch_size)
         std::cout << "Initialising hidden layer with size: " << layer_config[i] << std::endl;
         
         size_t size[2] = {layer_config[i]+1, layer_config[i+1]};
-        Layer l = new Layer(size, minibatch_size, false, false, f_sigmoid);
-        layers.pusb_back(l);
+        layers.push_back(new Layer(size, minibatch_size, false, false, f_sigmoid));
     }
 
     // output layer
     std::cout << "Initialising outupt layer with size: " << layer_config.back() << std::endl;
     size_t size[2] = {layer_config.back(), 0};
-    Layer l = new Layer(size, minibatch_size, false, true, f_softmax);
-    layers.pusb_back(l);
+    layers.push_back(new Layer(size, minibatch_size, false, true, f_softmax));
 
     std::cout << "ML-ANN CONSTRUCTION COMPLETE!" << std::endl;
+}
+
+ML_ANN::~ML_ANN()
+{
+    for(auto it = layers.begin(); it != layers.end(); ++it)
+        delete *it;
+}
+
+Eigen::MatrixXd ML_ANN::forward_propogate(const Eigen::MatrixXd& data)
+{
+    // for input set Z first to data and add an additional column for bias
+    Layer* l_ptr_0 = layers[0];
+    size_t i;
+    for(i = 0; i < l_ptr_0->Z.size(); i++)
+        *(l_ptr_0->Z.data() + i) = *(data.data() + i);
+    
+    // resize
+    l_ptr_0->Z.resize(Eigen::NoChange, l_ptr_0->Z.cols() + 1);
+
+    // add bias column
+    for(i = 0; i < l_ptr_0->Z.rows(); i++)
+        l_ptr_0->Z(i, l_ptr_0->Z.cols() - 1) = 1;
+
+    // loop through remaining layers and forward propogate input
+    for(i = 0; i < num_layers - 1; i++)
+        layers[i+1]->S = layers[i]->forward_propogate();
+
+    return (layers.back())->forward_propogate();
+}
+
+void ML_ANN::back_propogate(const Eigen::MatrixXd& yhat, const Eigen::MatrixXd& labels)
+{
+    layers.back()->D = (yhat - labels).transpose();
+
+    // backwards through the layers
+    size_t i;
+    for(i = num_layers-2; i > 0; i--)
+    {
+        // deltas for the bias values are not calculated
+        Eigen::MatrixXd W_nbias = layers[i]->W; //copying like this works
+
+        std::vector<int> indices(W_nbias.cols()-1);
+        std::iota(indices.begin(), indices.end(), 0);
+        W_nbias(indices, Eigen::all);
+
+        layers[i]->D = W_nbias * layers[i+1]->D * layers[i]->Fp;
+    }
+
+    return;
+}
+
+void ML_ANN::update_weights(size_t eta)
+{
+    size_t i;
+    for(i = 0; i < num_layers - 1; i++)
+    {
+        Eigen::MatrixXd W_grad = -(eta) * ((layers[i+1]->D * layers[i]->Z).transpose());
+        layers[i]->W += W_grad;
+    }
+
+    return;
 }
 
 

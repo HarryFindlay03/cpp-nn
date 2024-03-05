@@ -19,23 +19,27 @@ public:
     ~Layer() {} 
 
     Eigen::MatrixXd forward_propogate();
+
+    void print_layer() {std::cout << S << std::endl;}
 };
 
 
 class ML_ANN
 {
-    std::vector<Layer> layers;
+    std::vector<Layer*> layers;
     size_t num_layers;
     size_t minibatch_size;
 
 public:
-    ML_ANN(const std::vector<Layer>& layer_config, size_t minibatch_size);
+    ML_ANN(const std::vector<size_t>& layer_config, size_t minibatch_size);
 
-    ~ML_ANN() {}
+    ~ML_ANN();
 
     Eigen::MatrixXd forward_propogate(const Eigen::MatrixXd& data);
 
     void back_propogate(const Eigen::MatrixXd& yhat, const Eigen::MatrixXd& labels);
 
     void update_weights(size_t learning_rate);
+
+    // TODO evaluate function
 };
