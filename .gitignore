@@ -1,3 +1,7 @@
 cpp_nn
 
 include/Eigen
+
+.DS_Store
+.env/
+test.py
