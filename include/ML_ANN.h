@@ -10,9 +10,12 @@ class ML_ANN
 public:
     ML_ANN(const std::vector<size_t>& layer_config, size_t minibatch_size);
 
+    ML_ANN(const std::vector<size_t>& layer_config);
+
     ~ML_ANN();
 
     Eigen::MatrixXd forward_propogate(const Eigen::MatrixXd& data);
+    double forward_propogate_rl(const std::vector<double>& data);
 
     void back_propogate(const Eigen::MatrixXd& yhat, const Eigen::MatrixXd& labels);
 

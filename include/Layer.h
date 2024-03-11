@@ -1,23 +1,30 @@
 #ifndef LAYER_H
 #define LAYER_H
 
+double vector_f_sigmoid_rl_output(const Eigen::MatrixXd &inputs);
+
 class Layer
 {
     bool is_input, is_output;
+
     std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func;
+
+    
 
 public:
     Eigen::MatrixXd Z; // holds output values;
+    Eigen::MatrixXd S; // output values pre activation function - "inputs into the layer"
     Eigen::MatrixXd W; // outgoing weight matrix for layer
-    Eigen::MatrixXd S; // inputs to this layer
-    Eigen::MatrixXd D; // holds the deltas for this layer
     Eigen::MatrixXd Fp; // holds the derivatives for this layer
+    Eigen::MatrixXd D; // will hold the differences when backpropogation occurs
 
-    Layer(size_t size[2], size_t minibatch_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> func);
+    Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func);
 
     ~Layer() {} 
 
     Eigen::MatrixXd forward_propogate();
+
+    Eigen::MatrixXd forward_propogate_rl();
 
     void print_layer() {std::cout << S << std::endl;}
 };
