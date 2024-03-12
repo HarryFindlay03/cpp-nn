@@ -7,7 +7,7 @@
 #include "Layer.h"
 #include "ML_ANN.h"
 
-#define RANDOM_SEED 1234
+#define RANDOM_SEED 12345
 
 /* GLOBAL ACTIVATION FUNCTIONS */
 Eigen::MatrixXd f_sigmoid(const Eigen::MatrixXd& mat, bool deriv=false);

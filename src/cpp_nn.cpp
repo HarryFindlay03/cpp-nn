@@ -41,7 +41,7 @@ int main()
     ML_ANN* q_net = new ML_ANN(net_layout);
 
     std::vector<double> test_data = {0.5, 0.1, 0.3};
-    // std::cout << "TEST: " << q_net->forward_propogate_rl(test_data) << std::endl;
+    std::cout << "TEST: " << q_net->forward_propogate_rl(test_data) << std::endl;
 
 
     delete q_net;
