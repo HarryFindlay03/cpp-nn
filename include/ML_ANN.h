@@ -14,10 +14,13 @@ public:
 
     ~ML_ANN();
 
+    static Eigen::MatrixXd elem_wise_product(const Eigen::MatrixXd& lhs, const Eigen::MatrixXd& rhs);
+
     Eigen::MatrixXd forward_propogate(const Eigen::MatrixXd& data);
     double forward_propogate_rl(const std::vector<double>& data);
 
     void back_propogate(const Eigen::MatrixXd& yhat, const Eigen::MatrixXd& labels);
+    void back_propogate_rl(const double output, const double target);
 
     void update_weights(size_t learning_rate);
 

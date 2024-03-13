@@ -16,7 +16,7 @@ public:
     Eigen::MatrixXd S; // output values pre activation function - "inputs into the layer"
     Eigen::MatrixXd W; // outgoing weight matrix for layer
     Eigen::MatrixXd Fp; // holds the derivatives for this layer
-    Eigen::MatrixXd D; // will hold the differences when backpropogation occurs
+    Eigen::MatrixXd G; // gradient matrix
 
     Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func);
 
