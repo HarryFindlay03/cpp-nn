@@ -12,62 +12,36 @@
 /******************************/
 
 
-Eigen::MatrixXd f_sigmoid(const Eigen::MatrixXd& mat, bool deriv)
+Eigen::MatrixXd vector_f_sigmoid_rl(const Eigen::MatrixXd& in, bool deriv)
 {
-    Eigen::MatrixXd res(mat.rows(), mat.cols());
-    size_t i;
-    
+    int i;
     if(!deriv)
     {
-        for(i = 0; i < res.size(); i++)
-        {
-            auto ptr = res.data() + i;
-            *ptr = 1 / (1 + (exp(-(*(mat.data() + i)))));
+        Eigen::MatrixXd res(in.rows(), in.cols());
 
-        }
+        for(i = 0; i < in.size(); i++)
+            *(res.data() + i) = 1 / (1 + exp(-(*(in.data() + i))));
+
         return res;
     }
-    
-    auto temp = f_sigmoid(mat, false);
+
+    Eigen::MatrixXd temp = vector_f_sigmoid_rl(in, false);
     for(i = 0; i < temp.size(); i++)
         *(temp.data() + i) *= 1 - *(temp.data() + i);
-    
+
     return temp;
 }
 
 
-Eigen::MatrixXd f_softmax(const Eigen::MatrixXd& mat, bool deriv)
+double vector_f_sigmoid_rl_output(const Eigen::MatrixXd& inputs)
 {
-    // deriv here to allow contruction with function wrapper - deriv remains unused
-    
-    // softmax function - https://en.wikipedia.org/wiki/Softmax_function
-    
-    Eigen::MatrixXd exp_mat(mat.rows(), mat.cols());
-    Eigen::MatrixXd softmax_res(mat.rows(), 1);
-    
-    // summing the rows and placing into a column vector, each row representing the sum of mat_{row i}
-    size_t pos = 0;
-    for(auto row : mat.rowwise())
-    {
-        size_t temp = 0;
-        for(auto v : row)
-        {
-            temp += exp(v);
-        }
-        softmax_res(pos++, 0) = temp;
-    }
-    
-    // exponential matrix
-    size_t i, j;
-    for(i = 0; i < mat.size(); i++)
-        *(exp_mat.data() + i) = exp(*(mat.data() + i));
-    
-    // for each item in the exponentiation matrix - divide by corresponding row in softmax_res
-    for(i = 0; i < exp_mat.rows(); i++)
-        for(j = 0; j < exp_mat.cols(); j++)
-            exp_mat(i, j) = (exp_mat(i, j) / softmax_res(i));
+    double sum = 0;
 
-    return exp_mat;
+    int i;
+    for(i = 0; i < inputs.size(); i++)
+        sum += *(inputs.data() + i);
+
+    return (1 / (1 + (exp(-(sum)))));
 }
 
 
@@ -76,56 +50,67 @@ Eigen::MatrixXd f_softmax(const Eigen::MatrixXd& mat, bool deriv)
 /******************************/
 
 
-Layer::Layer(size_t size[2], size_t minibatch_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> func)
-    : is_input(is_input), is_output(is_output), activation_func(func)
+Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func) 
+    : is_input(is_input), is_output(is_output), activation_func(activation_func)
 {
-    Z = Eigen::MatrixXd::Zero(minibatch_size, size[0]);
-
-    // random generator
-    std::default_random_engine g;
-    g.seed(RANDOM_SEED);
-    std::uniform_real_distribution<double> distribution(0.0, 1.0);
-    auto uni = [&] () {return distribution(g);};
-
-    if(!is_input)
+    if(!count)
     {
-        S = Eigen::MatrixXd::Zero(minibatch_size, size[0]);
-        D = Eigen::MatrixXd::Zero(minibatch_size, size[0]);
+        random_engine.seed(RANDOM_SEED);
+        count++;
     }
+
+    // all layers have a Z matrix
+    Z = Eigen::MatrixXd::Zero(curr_size, 1);
+
+    // output and hidden layers
+    if(!is_input) 
+    {
+        S = Eigen::MatrixXd::Zero(curr_size, 1);
+        G = Eigen::MatrixXd::Zero(curr_size, 1);
+    }
+
+    // input layer and hidden layer
     if(!is_output)
     {
-        W = Eigen::MatrixXd::NullaryExpr(size[0], size[1], uni);
+        // random generator - seeded with static random_engine
+        std::uniform_real_distribution<double> distribution(0.0, 1.0);
+        auto uni = [&]() { return distribution(random_engine); };
+
+        W = Eigen::MatrixXd::NullaryExpr(curr_size, next_size, uni);
     }
-    if((!is_input) && (!is_output)) // hidden layer
+
+    // hidden layer only
+    if((!is_input) && (!is_output))
     {
-        Fp = Eigen::MatrixXd::Zero(size[0], minibatch_size);
+        Fp = Eigen::MatrixXd::Zero(curr_size, 1);
     }
 }
 
 
-Eigen::MatrixXd Layer::forward_propogate()
+Eigen::MatrixXd Layer::forward_propogate_rl()
 {
-    if(is_input)
-        return Z * W;
+    /* remark: output is handled seperately in ML_ANN::forward_propogate_rl()*/
 
-    Z = activation_func(S, false);
-    if(is_output)
+    // input layer - no activation func return data only
+    if(is_input)
         return Z;
 
-    // hidden layers
+    // hidden layer
+    Z = activation_func(S, false);
 
-    // resizing Z
-    Z.resize(Eigen::NoChange, Z.cols() + 1);
-    
-    size_t i;
-    size_t col = Z.cols();
-    for(i = 0; i < Z.rows(); i++)
-        Z(i, col-1) = 1;
+    // adding bias row to weights and Z
+    Eigen::MatrixXd W_bias = W;
+    W_bias.conservativeResize(W_bias.rows() + 1, W_bias.cols());
+    W_bias.row(W_bias.rows()-1) = Eigen::MatrixXd::Ones(1, W.cols());
 
+    Eigen::MatrixXd Z_bias = Z;
+    Z_bias.conservativeResize(Z_bias.rows() + 1, Z_bias.cols());
+    Z_bias.row(Z_bias.rows()-1) = Eigen::MatrixXd::Ones(1, 1);
+
+    // storing f'(S^(i)) for backpropogation step
     Fp = activation_func(S, true);
-    Fp.transposeInPlace();
 
-    return Z * W;
+    return (W_bias.transpose().eval()) * Z_bias;
 }
 
 
@@ -134,39 +119,21 @@ Eigen::MatrixXd Layer::forward_propogate()
 /******************************/
 
 
-ML_ANN::ML_ANN(const std::vector<size_t>& layer_config, size_t minibatch_size)
+ML_ANN::ML_ANN(const std::vector<size_t>& layer_config)
 {
-    // setting parameters
-    this->minibatch_size = minibatch_size;
     num_layers = layer_config.size();
+    layers.resize(num_layers);
 
-    size_t i;
-    for(i = 0; i < (num_layers-1); i++)
-    {
-        if(i == 0)
-        {
-            // input layer
-            std::cout << "Initialising input layer with size: " << layer_config[i] << std::endl;
+    // input layer
+    layers[0] = new Layer(layer_config[0], layer_config[1], true, false, vector_f_sigmoid_rl);
 
-            // additional unit at input for bias
-            size_t size[2] = {layer_config[i] + 1, layer_config[i+1]};
-            layers.push_back(new Layer(size, minibatch_size, true, false, f_sigmoid));
-            continue;
-        }
-        
-        // hidden layers
-        std::cout << "Initialising hidden layer with size: " << layer_config[i] << std::endl;
-        
-        size_t size[2] = {layer_config[i]+1, layer_config[i+1]};
-        layers.push_back(new Layer(size, minibatch_size, false, false, f_sigmoid));
-    }
+    // hidden layers
+    int i;
+    for(i = 1; i < (num_layers-1); i++)
+        layers[i] = new Layer(layer_config[i], layer_config[i+1], false, false, vector_f_sigmoid_rl);
 
-    // output layer
-    std::cout << "Initialising outupt layer with size: " << layer_config.back() << std::endl;
-    size_t size[2] = {layer_config.back(), 0};
-    layers.push_back(new Layer(size, minibatch_size, false, true, f_softmax));
-
-    std::cout << "ML-ANN CONSTRUCTION COMPLETE!" << std::endl;
+    // output layers
+    layers[num_layers-1] = new Layer(1, 0, false, true, vector_f_sigmoid_rl); // todo this needs to change
 }
 
 
@@ -177,108 +144,74 @@ ML_ANN::~ML_ANN()
 }
 
 
-Eigen::MatrixXd ML_ANN::forward_propogate(const Eigen::MatrixXd& data)
+/* remark: static function */
+Eigen::MatrixXd ML_ANN::elem_wise_product(const Eigen::MatrixXd& lhs, const Eigen::MatrixXd& rhs)
 {
-    // for input set Z first to data and add an additional column for bias
-    Layer* l_ptr_0 = layers[0];
-    size_t i;
-    for(i = 0; i < l_ptr_0->Z.size(); i++)
-        *(l_ptr_0->Z.data() + i) = *(data.data() + i);
-    
-    // resize
-    l_ptr_0->Z.resize(Eigen::NoChange, l_ptr_0->Z.cols() + 1);
-
-    // add bias column
-    for(i = 0; i < l_ptr_0->Z.rows(); i++)
-        l_ptr_0->Z(i, l_ptr_0->Z.cols() - 1) = 1;
-
-    // loop through remaining layers and forward propogate input
-    for(i = 0; i < num_layers - 1; i++)
-        layers[i+1]->S = layers[i]->forward_propogate();
-
-    return (layers.back())->forward_propogate();
-}
-
-
-void ML_ANN::back_propogate(const Eigen::MatrixXd& yhat, const Eigen::MatrixXd& labels)
-{
-    layers.back()->D = (yhat - labels).transpose();
-
-    // backwards through the layers
-    size_t i;
-    for(i = num_layers-2; i > 0; i--)
+    // if lhs & rhs do not have same dimensions - todo throw exception
+    if(!((lhs.cols() == rhs.cols()) && (lhs.rows() == rhs.rows())))
     {
-        // deltas for the bias values are not calculated
-        Eigen::MatrixXd W_nbias = layers[i]->W; //copying like this works
-
-        std::vector<int> indices(W_nbias.cols()-1);
-        std::iota(indices.begin(), indices.end(), 0);
-        W_nbias(indices, Eigen::all);
-
-        layers[i]->D = W_nbias * layers[i+1]->D * layers[i]->Fp;
+        std::cout << "ERROR: elem wise multiplication not possible";
+        std::cout << " matrix dimensions are not equal!" << std::endl;
+        std::exit(-1);
     }
 
-    return;
-}
-
-
-void ML_ANN::update_weights(size_t eta)
-{
-    size_t i;
-    for(i = 0; i < num_layers - 1; i++)
-    {
-        Eigen::MatrixXd W_grad = -(eta) * ((layers[i+1]->D * layers[i]->Z).transpose());
-        layers[i]->W += W_grad;
-    }
-
-    return;
-}
-
-
-void ML_ANN::evaluate(
-    const Eigen::MatrixXd& train_data,
-    const Eigen::MatrixXd& train_labels,
-    const Eigen::MatrixXd& test_data,
-    const Eigen::MatrixXd& test_labels,
-    size_t num_epochs,
-    double eta,
-    bool eval_train,
-    bool eval_test
-    )
-{
-    size_t train_n = train_data.size();
-    size_t test_n = test_data.size();
-
+    Eigen::MatrixXd res(lhs.rows(), lhs.cols());
     int i, j;
-    for (i = 0; i < num_epochs; i++)
+    for(i = 0; i < lhs.size(); i++)
+        *(res.data() + i) = *(lhs.data() + i) * *(rhs.data() + i);
+
+    return res;
+}
+
+
+double ML_ANN::forward_propogate_rl(const std::vector<double>& data)
+{
+    auto l_ptr_0 = layers[0];
+
+    // checking input data is correct size
+    if(!(data.size() == l_ptr_0->Z.rows()))
     {
-        // for each item in train
-        for(j = 0; j < train_data.rows(); j++)
-        {
-            // get the output from the train data, backprop and update weights
-            Eigen::MatrixXd out = forward_propogate(train_data.row(j));
-            back_propogate(out, train_labels.row(j));
-            update_weights(eta);
-        }
+        std::cout << "INPUT DATA NOT OF CORRECT LENGTH: INPUT(" << data.size() << ") REQUIRED(" << l_ptr_0->Z.rows() << ")" << std::endl;
+        std::exit(-1);
+    }
 
-        // if(eval_train)
-        // {
-        //     // get the training error
-        //     int errs = 0;
-        //     for(j = 0; j < train_data.rows(); j++)
-        //     {
-        //         Eigen::MatrixXd out = forward_propogate(train_data.row(j));
-        //         double yhat = out.maxCoeff();
-        //     }
-        // }
+    // input layer - set Z to data
+    int i;
+    for(i = 0; i < l_ptr_0->Z.size(); i++)
+        *(l_ptr_0->Z.data() + i) = data[i];
 
-        // if(eval_test)
-        // {
-        //     // get the testing error
-        // }
+    // forward propogate through hidden layers
+    for(i = 1; i < (num_layers-1); i++)
+        layers[i]->S = layers[i-1]->forward_propogate_rl(); 
 
-        std::cout << "EPOCH: " << i << std::endl;
+    // get output
+    layers[num_layers-1]->S = layers[num_layers-2]->forward_propogate_rl();
+    return vector_f_sigmoid_rl_output(layers[num_layers-1]->S);
+}
+
+
+void ML_ANN::back_propogate_rl(const double output, const double target)
+{
+    // output layer
+    // output matrix for G
+    Eigen::MatrixXd t_out(1, 1);
+    t_out << (output - target);
+
+    layers[num_layers-1]->G = t_out;
+
+    // backwards through the remaining layers excluding input
+    int i;
+    for(i = (num_layers-2); i > 0; i--)
+    {
+        Eigen::MatrixXd W_nbias = layers[i]->W;
+        layers[i]->G = ML_ANN::elem_wise_product(layers[i]->Fp, (W_nbias * layers[i+1]->G));
     }
 }
 
 
+void ML_ANN::update_weights_rl(const double eta)
+{
+    int i;
+    for(i = 0; i < (num_layers-1); i++)
+        layers[i]->W += -(eta) * (layers[i+1]->G * layers[i]->Z.transpose().eval()).transpose().eval();
+}

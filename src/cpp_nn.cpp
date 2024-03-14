@@ -1,33 +1,29 @@
 #include "cpp_nn.h"
 
 
+std::default_random_engine Layer::random_engine;
+int Layer::count = 0;
+
+
 int main()
 {
-    // random seed
-    srand(1234);
+    std::vector<size_t> net_layout = {3, 3, 6, 7, 9, 8, 4, 2, 3, 1}; // the 1 here is redundant but still add it
 
-    size_t t[4] = {4, 4};
-    Layer l(t, 4, false, true, f_sigmoid);
+    ML_ANN* q_net = new ML_ANN(net_layout);
 
-    std::cout << "Testing layer construction!" << std::endl;
-    
-    std::vector<size_t> t_vec = {100, 100, 100, 100};
-    ML_ANN* ann_t = new ML_ANN(t_vec, 100);
+    std::vector<double> test_data = {0.5, 0.1, 0.7};
 
-    delete ann_t;
-    
-    Eigen::MatrixXd t_mat(4, 4);
-    t_mat << 1, 2, 3, 4,
-          5, 6, 7, 8,
-          9, 10, 11, 12,
-          13, 14, 15, 16;
-    std::cout << f_softmax(t_mat) << std::endl;
+    int i;
+    int epochs = 100;
+    for(i = 0; i < epochs; i++)
+    {
+        auto output = q_net->forward_propogate_rl(test_data);
+        std::cout << "(" << i << ") OUTPUT: " << output << std::endl;
 
-    Eigen::MatrixXd cpy = t_mat;
-    std::cout << std::endl << t_mat << std::endl;
+        q_net->back_propogate_rl(output, 0.4);
+        q_net->update_weights_rl(0.3);
+    }
 
-    cpy(0, 3) = 1000;
-    std::cout << std::endl << t_mat << std::endl << cpy << std::endl;
-
+    delete q_net;
     return 0;
 }

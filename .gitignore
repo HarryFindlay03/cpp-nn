@@ -1,7 +1,10 @@
 cpp_nn
 
 include/Eigen
+/build/*.o
 
 .DS_Store
+/.vscode
+
 .env/
 test.py
