@@ -9,9 +9,11 @@ class Layer
 
     std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func;
 
-    static std::default_random_engine random_engine;
 
 public:
+    static int count;
+    static std::default_random_engine random_engine;
+
     Eigen::MatrixXd Z; // holds output values;
     Eigen::MatrixXd S; // output values pre activation function - "inputs into the layer"
     Eigen::MatrixXd W; // outgoing weight matrix for layer

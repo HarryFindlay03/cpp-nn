@@ -41,7 +41,7 @@ double vector_f_sigmoid_rl_output(const Eigen::MatrixXd& inputs)
     for(i = 0; i < inputs.size(); i++)
         sum += *(inputs.data() + i);
 
-    return 1 / (1 + (exp(-(sum))));
+    return (1 / (1 + (exp(-(sum)))));
 }
 
 
@@ -53,6 +53,12 @@ double vector_f_sigmoid_rl_output(const Eigen::MatrixXd& inputs)
 Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func) 
     : is_input(is_input), is_output(is_output), activation_func(activation_func)
 {
+    if(!count)
+    {
+        random_engine.seed(RANDOM_SEED);
+        count++;
+    }
+
     // all layers have a Z matrix
     Z = Eigen::MatrixXd::Zero(curr_size, 1);
 
@@ -66,11 +72,9 @@ Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::f
     // input layer and hidden layer
     if(!is_output)
     {
-        // random generator - need to seed with static random generator
-        std::default_random_engine g;
-        g.seed(RANDOM_SEED);
+        // random generator - seeded with static random_engine
         std::uniform_real_distribution<double> distribution(0.0, 1.0);
-        auto uni = [&]() { return distribution(g); };
+        auto uni = [&]() { return distribution(random_engine); };
 
         W = Eigen::MatrixXd::NullaryExpr(curr_size, next_size, uni);
     }

@@ -1,6 +1,10 @@
 #include "cpp_nn.h"
 
 
+std::default_random_engine Layer::random_engine;
+int Layer::count = 0;
+
+
 int main()
 {
     std::vector<size_t> net_layout = {3, 3, 6, 7, 9, 8, 4, 2, 3, 1}; // the 1 here is redundant but still add it
