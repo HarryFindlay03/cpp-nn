@@ -89,6 +89,11 @@ Eigen::MatrixXd Layer::forward_propogate_rl()
 
     // hidden layer
     Z = vector_f_sigmoid_rl(S, false); // todo something is wrong with using activation_func wrapper
+
+    // adding bias row to weights
+    // W.conservativeResize(W.rows() + 1, W.cols());
+    // W.row(W.rows()-1) = Eigen::MatrixXd::Ones(1, W.cols());
+
     Fp = vector_f_sigmoid_rl(S, true);
 
     return (W.transpose().eval()) * Z;
@@ -194,63 +199,9 @@ void ML_ANN::back_propogate_rl(const double output, const double target)
 }
 
 
-// void ML_ANN::update_weights(size_t eta)
-// {
-//     size_t i;
-//     for(i = 0; i < num_layers - 1; i++)
-//     {
-//         Eigen::MatrixXd W_grad = -(eta) * ((layers[i+1]->D * layers[i]->Z).transpose());
-//         layers[i]->W += W_grad;
-//     }
-
-//     return;
-// }
-
-
-// void ML_ANN::evaluate(
-//     const Eigen::MatrixXd& train_data,
-//     const Eigen::MatrixXd& train_labels,
-//     const Eigen::MatrixXd& test_data,
-//     const Eigen::MatrixXd& test_labels,
-//     size_t num_epochs,
-//     double eta,
-//     bool eval_train,
-//     bool eval_test
-//     )
-// {
-//     size_t train_n = train_data.size();
-//     size_t test_n = test_data.size();
-
-//     int i, j;
-//     for (i = 0; i < num_epochs; i++)
-//     {
-//         // for each item in train
-//         for(j = 0; j < train_data.rows(); j++)
-//         {
-//             // get the output from the train data, backprop and update weights
-//             Eigen::MatrixXd out = forward_propogate(train_data.row(j));
-//             back_propogate(out, train_labels.row(j));
-//             update_weights(eta);
-//         }
-
-//         // if(eval_train)
-//         // {
-//         //     // get the training error
-//         //     int errs = 0;
-//         //     for(j = 0; j < train_data.rows(); j++)
-//         //     {
-//         //         Eigen::MatrixXd out = forward_propogate(train_data.row(j));
-//         //         double yhat = out.maxCoeff();
-//         //     }
-//         // }
-
-//         // if(eval_test)
-//         // {
-//         //     // get the testing error
-//         // }
-
-//         std::cout << "EPOCH: " << i << std::endl;
-//     }
-// }
-
-
+void ML_ANN::update_weights_rl(const double eta)
+{
+    int i;
+    for(i = 0; i < (num_layers-1); i++)
+        layers[i]->W += -(eta) * (layers[i+1]->G * layers[i]->Z.transpose().eval()).transpose().eval();
+}

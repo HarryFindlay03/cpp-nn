@@ -23,6 +23,7 @@ public:
     void back_propogate_rl(const double output, const double target);
 
     void update_weights(size_t learning_rate);
+    void update_weights_rl(const double eta);
 
     void evaluate(
         const Eigen::MatrixXd& train_data, 
