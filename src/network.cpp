@@ -50,21 +50,23 @@ double vector_f_sigmoid_rl_output(const Eigen::MatrixXd& inputs)
 /******************************/
 
 
-Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_fun) 
+Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func) 
     : is_input(is_input), is_output(is_output), activation_func(activation_func)
 {
     // all layers have a Z matrix
     Z = Eigen::MatrixXd::Zero(curr_size, 1);
 
-    if(!is_input) // output and hidden layers 
+    // output and hidden layers
+    if(!is_input) 
     {
         S = Eigen::MatrixXd::Zero(curr_size, 1);
         G = Eigen::MatrixXd::Zero(curr_size, 1);
     }
-    if(!is_output) // input layer and hidden layer
+
+    // input layer and hidden layer
+    if(!is_output)
     {
-        // random generator
-        // todo make this a static function for layer class
+        // random generator - need to seed with static random generator
         std::default_random_engine g;
         g.seed(RANDOM_SEED);
         std::uniform_real_distribution<double> distribution(0.0, 1.0);
@@ -72,31 +74,39 @@ Layer::Layer(int curr_size, int next_size, bool is_input, bool is_output, std::f
 
         W = Eigen::MatrixXd::NullaryExpr(curr_size, next_size, uni);
     }
-    if((!is_input) && (!is_output)) // hidden layer only
+
+    // hidden layer only
+    if((!is_input) && (!is_output))
     {
         Fp = Eigen::MatrixXd::Zero(curr_size, 1);
     }
-
 }
 
 
 Eigen::MatrixXd Layer::forward_propogate_rl()
 {
+    /* remark: output is handled seperately in ML_ANN::forward_propogate_rl()*/
+
+    // input layer - no activation func return data only
     if(is_input)
         return Z;
 
-    // output is handled seperately in ML_ANN class
-
     // hidden layer
-    Z = vector_f_sigmoid_rl(S, false); // todo something is wrong with using activation_func wrapper
+    Z = activation_func(S, false);
 
-    // adding bias row to weights
-    // W.conservativeResize(W.rows() + 1, W.cols());
-    // W.row(W.rows()-1) = Eigen::MatrixXd::Ones(1, W.cols());
+    // adding bias row to weights and Z
+    Eigen::MatrixXd W_bias = W;
+    W_bias.conservativeResize(W_bias.rows() + 1, W_bias.cols());
+    W_bias.row(W_bias.rows()-1) = Eigen::MatrixXd::Ones(1, W.cols());
 
-    Fp = vector_f_sigmoid_rl(S, true);
+    Eigen::MatrixXd Z_bias = Z;
+    Z_bias.conservativeResize(Z_bias.rows() + 1, Z_bias.cols());
+    Z_bias.row(Z_bias.rows()-1) = Eigen::MatrixXd::Ones(1, 1);
 
-    return (W.transpose().eval()) * Z;
+    // storing f'(S^(i)) for backpropogation step
+    Fp = activation_func(S, true);
+
+    return (W_bias.transpose().eval()) * Z_bias;
 }
 
 
@@ -152,27 +162,23 @@ Eigen::MatrixXd ML_ANN::elem_wise_product(const Eigen::MatrixXd& lhs, const Eige
 
 double ML_ANN::forward_propogate_rl(const std::vector<double>& data)
 {
-    // todo: bias column
-
-    // for the input set Z to data
     auto l_ptr_0 = layers[0];
 
-    // check input data is of correct size
+    // checking input data is correct size
     if(!(data.size() == l_ptr_0->Z.rows()))
-        return -1;
+    {
+        std::cout << "INPUT DATA NOT OF CORRECT LENGTH: INPUT(" << data.size() << ") REQUIRED(" << l_ptr_0->Z.rows() << ")" << std::endl;
+        std::exit(-1);
+    }
 
+    // input layer - set Z to data
     int i;
     for(i = 0; i < l_ptr_0->Z.size(); i++)
         *(l_ptr_0->Z.data() + i) = data[i];
 
     // forward propogate through hidden layers
     for(i = 1; i < (num_layers-1); i++)
-    {
         layers[i]->S = layers[i-1]->forward_propogate_rl(); 
-
-        // store Fp
-        layers[i]->Fp = vector_f_sigmoid_rl(layers[i]->S, true);
-    }
 
     // get output
     layers[num_layers-1]->S = layers[num_layers-2]->forward_propogate_rl();

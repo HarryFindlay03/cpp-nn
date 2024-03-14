@@ -1,7 +1,7 @@
 #ifndef LAYER_H
 #define LAYER_H
 
-double vector_f_sigmoid_rl_output(const Eigen::MatrixXd &inputs);
+#define RANDOM_SEED 12345
 
 class Layer
 {
@@ -9,7 +9,7 @@ class Layer
 
     std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func;
 
-    
+    static std::default_random_engine random_engine;
 
 public:
     Eigen::MatrixXd Z; // holds output values;
@@ -18,15 +18,14 @@ public:
     Eigen::MatrixXd Fp; // holds the derivatives for this layer
     Eigen::MatrixXd G; // gradient matrix
 
+
     Layer(int curr_size, int next_size, bool is_input, bool is_output, std::function<Eigen::MatrixXd(const Eigen::MatrixXd &, bool)> activation_func);
+
 
     ~Layer() {} 
 
-    Eigen::MatrixXd forward_propogate();
 
     Eigen::MatrixXd forward_propogate_rl();
-
-    void print_layer() {std::cout << S << std::endl;}
 };
 
 #endif
