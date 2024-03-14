@@ -1,7 +1,7 @@
 cpp_nn
 
 include/Eigen
-/build
+/build/*.o
 
 .DS_Store
 /.vscode
