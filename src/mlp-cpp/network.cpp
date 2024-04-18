@@ -1,5 +1,5 @@
 
-#include "cpp-nn/network.h"
+#include "mlp-cpp/network.h"
 
 /* LAYER CLASS IMPLEMENTATION */
 
