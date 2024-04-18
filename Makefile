@@ -5,7 +5,7 @@ CXXFLAGS=-I $(INCLUDE_DIR)
 default: main
 
 network.o:
-	$(CC) $(CXXFLAGS) -c src/cpp-nn/network.cpp -o build/$@
+	$(CC) $(CXXFLAGS) -c src/mlp-cpp/network.cpp -o build/$@
 
 main: network.o
 	$(CC) $(CXXFLAGS) src/main.cpp build/network.o -o bin/main
