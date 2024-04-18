@@ -1,0 +1,13 @@
+# build and link folders
+build/
+bin/
+
+# Eigen
+include/Eigen/
+
+# main driver
+src/main.cpp
+
+# misc
+.vscode/
+.DS_Store
